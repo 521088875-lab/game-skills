@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>游戏技能数据库与筛选工具</title>
+    <style>
+        :root { --bg: #f4f4f9; --card-bg: #ffffff; --primary: #4f46e5; --primary-hover: #4338ca; --text: #1f2937; --border: #e5e7eb; --danger: #ef4444; }
+        body { font-family: system-ui, -apple-system, sans-serif; background-color: var(--bg); color: var(--text); margin: 0; padding: 20px; }
+        .container { max-width: 1400px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1.5fr; gap: 20px; }
+        @media (max-width: 900px) { .container { grid-template-columns: 1fr; } }
+        .card { background: var(--card-bg); padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); overflow-y: auto; }
+        h1, h2, h3 { margin-top: 0; }
+        .top-bar { grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
+        input, select, button, textarea { padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px; }
+        button { background: var(--primary); color: white; border: none; cursor: pointer; transition: background 0.2s; }
+        button:hover { background: var(--primary-hover); }
+        .btn-danger { background: var(--danger); } .btn-danger:hover { background: #dc2626; }
+        .btn-secondary { background: #6b7280; } .btn-secondary:hover { background: #4b5563; }
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; font-weight: bold; margin-bottom: 5px; }
+        .dynamic-row { display: flex; gap: 10px; margin-bottom: 10px; align-items: center; }
+        .dynamic-row input { flex: 1; }
+        .tag-container { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 5px; }
+        .tag { background: #e0e7ff; color: #3730a3; padding: 4px 8px; border-radius: 4px; font-size: 12px; display: flex; align-items: center; gap: 4px; }
+        .tag .remove-tag { cursor: pointer; font-weight: bold; color: #6366f1; } .tag .remove-tag:hover { color: #ef4444; }
+        .search-box { background: #f9fafb; padding: 15px; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 20px; }
+        .skill-card { border: 1px solid var(--border); padding: 15px; border-radius: 8px; margin-bottom: 15px; position: relative; }
+        .skill-card h3 { margin-top: 0; color: var(--primary); border-bottom: 1px solid var(--border); padding-bottom: 5px; }
+        .skill-actions { position: absolute; top: 15px; right: 15px; display: flex; gap: 5px; }
+        .detail-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin: 10px 0; }
+        .detail-item { font-size: 13px; background: #f3f4f6; padding: 6px 10px; border-radius: 4px; }
+        .detail-key { font-weight: bold; color: #4b5563; margin-right: 5px; }
+        .empty-state { text-align: center; color: #9ca3af; padding: 40px; }
+        /* 初始加载提示样式 */
+        #loadingScreen { position: fixed; top:0; left:0; width:100%; height:100%; background:var(--bg); display: flex; justify-content: center; align-items: center; font-size: 24px; color: var(--primary); z-index: 9999; }
+    </style>
+</head>
+<body>
+    <!-- 增加一个加载幕，如果JS报错，这个幕就不会消失，说明是JS完全没跑起来 -->
+    <div id="loadingScreen">正在载入技能数据库...</div>
+
+    <div class="container" id="appContainer" style="display: none;">
+        <!-- 顶部操作栏 -->
+        <div class="top-bar">
+            <h1>⚔️ 游戏技能数据库</h1>
+            <div style="display: flex; gap: 10px;">
+                <button class="btn-secondary" onclick="exportData()">📦 导出数据 (JSON)</button>
+                <button class="btn-secondary" onclick="document.getElementById('importFile').click()">📥 导入数据 (JSON)</button>
+                <input type="file" id="importFile" accept=".json" style="display: none;" onchange="importData(event)">
+            </div>
+        </div>
+
+        <!-- 左侧：添加/编辑面板 -->
+        <div class="card" style="max-height: 85vh; position: sticky; top: 20px;">
+            <h2 id="formTitle">➕ 添加新技能</h2>
+            <input type="hidden" id="editingId" value="">
+            
+            <div class="form-group">
+                <label>技能名称</label>
+                <input type="text" id="skillName" placeholder="输入技能名字..." style="width: 100%;">
+            </div>
+            
+            <div class="form-group">
+                <label>技能标签</label>
+                <div style="display: flex; gap: 10px;">
+                    <input type="text" id="tagInput" placeholder="输入标签后按回车..." style="width: 100%;" onkeydown="if(event.key==='Enter'){event.preventDefault(); addTag();}">
+                    <button onclick="addTag()">添加</button>
+                </div>
+                <div id="tagsContainer" class="tag-container"></div>
+            </div>
+            
+            <div class="form-group">
+                <label>自定义属性</label>
+                <div id="detailsContainer"></div>
+                <button class="btn-secondary" onclick="addDetailRow()" style="margin-top: 5px; width: 100%;">+ 添加一行属性</button>
+                <p style="font-size: 12px; color: #6b7280; margin-top: 5px;">💡 提示：如果"属性值"填写纯数字，搜索时可支持 >(大于)、<(小于) 等范围筛选。</p>
+            </div>
+            
+            <div style="display: flex; gap: 10px; margin-top: 20px;">
+                <button onclick="saveSkill()" style="flex: 1;">💾 保存技能</button>
+                <button class="btn-secondary" onclick="resetForm()" style="flex: 1;">重置/取消</button>
+            </div>
+        </div>
+
+        <!-- 右侧：搜索与列表面板 -->
+        <div class="card">
+            <div class="search-box">
+                <h3 style="margin-top:0;">🔍 筛选与搜索</h3>
+                <input type="text" id="searchGlobal" placeholder="全局模糊搜索 (名字/标签/属性值)..." style="width: 100%; margin-bottom: 10px;" oninput="renderList()">
+                <div id="advancedSearchContainer"></div>
+                <button class="btn-secondary" onclick="addSearchCondition()" style="margin-top: 10px; width: 100%;">+ 添加高级条件 (AND逻辑)</button>
+                <p style="font-size: 12px; color: #6b7280; margin-top: 5px;">高级条件之间为"同时满足(AND)"逻辑。数值属性支持>、<、=、>=、<=，如输入 ">100"。</p>
+            </div>
+            <div id="skillListContainer" style="margin-top: 20px;"></div>
+        </div>
+    </div>
+
+    <script>
+        // --- 安全读取数据 ---
+        let skills = [];
+        let isStorageAvailable = true;
+
+        try {
+            // 测试 localStorage 是否可用
+            localStorage.setItem('__test__', '1');
+            localStorage.removeItem('__test__');
+            skills = JSON.parse(localStorage.getItem('gameSkillsDB')) || [];
+        } catch (e) {
+            isStorageAvailable = false;
+            console.error("浏览器本地存储不可用，数据将无法自动保存！", e);
+            alert("检测到浏览器本地存储被禁用（可能处于隐私模式或安全限制）。\n数据无法自动保存到本地，请使用导出功能备份数据，或换用常规浏览器打开！");
+        }
+
+        let currentTags = [];
+        let currentDetails = [];
+        let searchConditions = [];
+
+        // --- DOM 加载完毕后再执行 ---
+        window.onload = function() {
+            document.getElementById('loadingScreen').style.display = 'none';
+            document.getElementById('appContainer').style.display = 'grid';
+            renderList();
+        };
+
+        function generateId() { return Date.now().toString(36) + Math.random().toString(36).substr(2, 9); }
+
+        function saveToStorage() {
+            if (!isStorageAvailable) return;
+            try {
+                localStorage.setItem('gameSkillsDB', JSON.stringify(skills));
+            } catch (e) {
+                console.error("保存失败", e);
+            }
+        }
+
+        function addTag() { const input = document.getElementById('tagInput'); const tag = input.value.trim(); if (tag && !currentTags.includes(tag)) { currentTags.push(tag); renderTags(); } input.value = ''; }
+        function removeTag(index) { currentTags.splice(index, 1); renderTags(); }
+        function renderTags() { document.getElementById('tagsContainer').innerHTML = currentTags.map((tag, i) => `<span class="tag">${tag} <span class="remove-tag" onclick="removeTag(${i})">×</span></span>`).join(''); }
+
+        function addDetailRow(key = '', value = '') { currentDetails.push({ key, value }); renderDetails(); }
+        function removeDetailRow(index) { currentDetails.splice(index, 1); renderDetails(); }
+        function renderDetails() {
+            document.getElementById('detailsContainer').innerHTML = currentDetails.map((detail, i) =>
+                `<div class="dynamic-row"> <input type="text" placeholder="属性名 (如: 伤害)" value="${detail.key}" onchange="currentDetails[${i}].key=this.value"> <input type="text" placeholder="属性值 (如: 150 或 范围)" value="${detail.value}" onchange="currentDetails[${i}].value=this.value"> <button class="btn-danger" onclick="removeDetailRow(${i})">×</button> </div>`
+            ).join('');
+        }
+
+        function saveSkill() {
+            const name = document.getElementById('skillName').value.trim();
+            if (!name) { alert('技能名字不能为空！'); return; }
+            const editId = document.getElementById('editingId').value;
+            const formattedDetails = {};
+            currentDetails.forEach(d => {
+                if(d.key.trim()) {
+                    const val = d.value.trim();
+                    formattedDetails[d.key.trim()] = isNaN(val) || val === '' ? val : Number(val);
+                }
+            });
+
+            if (editId) {
+                const index = skills.findIndex(s => s.id === editId);
+                if(index !== -1) { skills[index].name = name; skills[index].tags = [...currentTags]; skills[index].details = formattedDetails; }
+            } else {
+                skills.push({ id: generateId(), name, tags: [...currentTags], details: formattedDetails, createdAt: new Date().toISOString() });
+            }
+            saveToStorage(); renderList(); resetForm();
+        }
+
+        function resetForm() { document.getElementById('skillName').value = ''; document.getElementById('editingId').value = ''; currentTags = []; currentDetails = []; renderTags(); renderDetails(); document.getElementById('formTitle').innerText = '➕ 添加新技能'; }
+
+        function editSkill(id) {
+            const skill = skills.find(s => s.id === id); if (!skill) return;
+            document.getElementById('formTitle').innerText = '✏️ 编辑技能'; document.getElementById('editingId').value = id;
+            document.getElementById('skillName').value = skill.name;
+            currentTags = [...skill.tags];
+            currentDetails = Object.entries(skill.details || {}).map(([key, value]) => ({key, value: String(value)}));
+            renderTags(); renderDetails(); window.scrollTo(0, 0);
+        }
+
+        function deleteSkill(id) { if(!confirm('确定要删除这个技能吗？')) return; skills = skills.filter(s => s.id !== id); saveToStorage(); if(document.getElementById('editingId').value === id) resetForm(); renderList(); }
+
+        function addSearchCondition() { searchConditions.push({ key: '', value: '' }); renderSearchConditions(); }
+        function removeSearchCondition(index) { searchConditions.splice(index, 1); renderSearchConditions(); renderList(); }
+        function renderSearchConditions() {
+            document.getElementById('advancedSearchContainer').innerHTML = searchConditions.map((cond, i) =>
+                `<div class="dynamic-row"> <input type="text" placeholder="属性名/标签" value="${cond.key}" onchange="searchConditions[${i}].key=this.value; renderList()"> <input type="text" placeholder="值 (支持 > < = 等)" value="${cond.value}" onchange="searchConditions[${i}].value=this.value; renderList()"> <button class="btn-danger" onclick="removeSearchCondition(${i})">×</button> </div>`
+            ).join('');
+        }
+
+        function checkCondition(skill, cond) {
+            const searchKey = cond.key.trim().toLowerCase();
+            const searchVal = cond.value.trim();
+            const searchValLower = searchVal.toLowerCase();
+            if (!searchVal) return true;
+            const match = searchVal.match(/^([><=!]+)([\d.]+)$/);
+            const operator = match ? match[1] : 'includes';
+            const numValue = match ? parseFloat(match[2]) : null;
+            const strValue = match ? match[2].toLowerCase() : searchValLower;
+            let matched = false;
+            if (!searchKey && skill.name.toLowerCase().includes(strValue)) matched = true;
+            if (!searchKey && skill.tags.some(t => t.toLowerCase().includes(strValue))) matched = true;
+            if (searchKey) {
+                if (searchKey === '标签' || searchKey === 'tag') { if (skill.tags.some(t => t.toLowerCase().includes(strValue))) matched = true; }
+                if (skill.details) {
+                    for (const [dKey, dVal] of Object.entries(skill.details)) {
+                        if (dKey.toLowerCase() === searchKey) {
+                            if (operator !== 'includes' && typeof dVal === 'number') {
+                                if (operator === '>' && dVal > numValue) matched = true;
+                                else if (operator === '>=' && dVal >= numValue) matched = true;
+                                else if (operator === '<' && dVal < numValue) matched = true;
+                                else if (operator === '<=' && dVal <= numValue) matched = true;
+                                else if ((operator === '=' || operator === '==') && dVal === numValue) matched = true;
+                            } else { if (String(dVal).toLowerCase().includes(strValue)) matched = true; }
+                        }
+                    }
+                }
+            } else {
+                if(skill.details) { for (const dVal of Object.values(skill.details)) { if (operator !== 'includes' && typeof dVal === 'number') { if (operator === '>' && dVal > numValue) matched = true; } else if (String(dVal).toLowerCase().includes(strValue)) matched = true; } }
+            }
+            return matched;
+        }
+
+        function renderList() {
+            const globalSearch = document.getElementById('searchGlobal').value.trim().toLowerCase();
+            let filteredSkills = skills.filter(skill => {
+                if (globalSearch) { if (!checkCondition(skill, { key: '', value: globalSearch })) return false; }
+                for (let cond of searchConditions) { if (cond.key || cond.value) { if (!checkCondition(skill, cond)) return false; } }
+                return true;
+            });
+            const container = document.getElementById('skillListContainer');
+            if (filteredSkills.length === 0) { container.innerHTML = `<div class="empty-state">没有找到匹配的技能，或库中暂无技能。</div>`; return; }
+            container.innerHTML = `<p style="color:#6b7280; font-size:14px; margin-bottom:15px;">共找到 ${filteredSkills.length} 个技能</p>` +
+            filteredSkills.map(skill => {
+                const tagsHtml = skill.tags.map(t => `<span class="tag">${t}</span>`).join('');
+                const detailsHtml = Object.entries(skill.details || {}).map(([k, v]) => `<div class="detail-item"><span class="detail-key">${k}:</span> ${v}</div>`).join('');
+                return `<div class="skill-card"> <div class="skill-actions"> <button class="btn-secondary" onclick="editSkill('${skill.id}')" style="font-size:12px; padding:4px 8px;">编辑</button> <button class="btn-danger" onclick="deleteSkill('${skill.id}')" style="font-size:12px; padding:4px 8px;">删除</button> </div> <h3>${skill.name}</h3> <div class="tag-container" style="margin-bottom: 10px;">${tagsHtml || '<span style="color:#9ca3af; font-size:12px;">无标签</span>'}</div> ${detailsHtml ? `<div class="detail-grid">${detailsHtml}</div>` : ''} </div>`;
+            }).join('');
+        }
+
+        function exportData() {
+            if(skills.length === 0) { alert('当前数据库为空'); return; }
+            const dataStr = JSON.stringify(skills, null, 2);
+            const blob = new Blob([dataStr], {type: "application/json"});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a'); a.href = url; a.download = `技能数据库_${new Date().toLocaleDateString().replace(/\//g, '-')}.json`; a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function importData(event) {
+            const file = event.target.files[0]; if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const importedArray = JSON.parse(e.target.result);
+                    if (!Array.isArray(importedArray)) throw new Error("格式错误");
+                    const mergeMode = confirm('点击"确定"将导入的数据【合并】到现有数据库中；\n点击"取消"将【覆盖】现有数据库。');
+                    if (mergeMode) { const existingIds = new Set(skills.map(s => s.id)); importedArray.forEach(s => { if(!existingIds.has(s.id)) skills.push(s); }); }
+                    else { skills = importedArray; }
+                    saveToStorage(); renderList(); alert('导入成功！');
+                } catch (err) { alert('导入失败，请确保上传的是本工具导出的合法JSON文件。'); }
+            };
+            reader.readAsText(file); event.target.value = '';
+        }
+    </script>
+</body>
+</html>
