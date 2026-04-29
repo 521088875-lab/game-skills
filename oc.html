@@ -126,9 +126,13 @@
 
     <div id="view-list" class="view active">
         <div class="header">
-            <h1>📑 档案局 - OC 管理中台</h1>
-            <button class="btn btn-light" onclick="exportData()">备份档案</button>
-        </div>
+         <h1>📑 档案局 - OC 管理中台</h1>
+         <div style="display: flex; gap: 10px;">
+             <button class="btn btn-light" onclick="exportData()">📤 导出备份</button>
+             <button class="btn btn-light" onclick="document.getElementById('importFile').click()">📥 导入档案</button>
+             <input type="file" id="importFile" style="display: none" accept=".json" onchange="importData(event)">
+         </div>
+     </div>
         <div class="container">
             <div id="ocList" class="list-grid"></div>
             <div id="emptyState" style="text-align: center; padding: 50px 20px; color: var(--text-sub); display: none;">
