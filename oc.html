@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>OC 角色设定档案库</title>
+    <style>
+        :root {
+            --bg-body: #e2e8f0; --bg-card: #f8fafc; --bg-paper: #ffffff;
+            --text-main: #0f172a; --text-sub: #64748b;
+            --border-light: #cbd5e1; --border-dark: #94a3b8;
+            --primary: #334155; --accent: #2563eb; --danger: #dc2626;
+            --star-on: #1e293b; --star-off: #e2e8f0;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        html, body { height: 100%; font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif; background: var(--bg-body); color: var(--text-main); -webkit-tap-highlight-color: transparent; }
+
+        #toast { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: var(--danger); color: white; padding: 12px 24px; border-radius: 8px; z-index: 9999; display: none; font-size: 14px; font-weight: bold; box-shadow: 0 4px 12px rgba(0,0,0,0.15); animation: dropDown 0.3s ease; }
+        @keyframes dropDown { from { top: -20px; opacity: 0; } to { top: 20px; opacity: 1; } }
+        
+        #confirmModal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:9999; align-items:center; justify-content:center; backdrop-filter: blur(2px); }
+        .modal-box { background:white; padding:24px; border-radius:12px; width:300px; text-align:center; box-shadow: 0 10px 25px rgba(0,0,0,0.2); animation: popUp 0.2s ease; }
+        @keyframes popUp { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+        .view { display: none; min-height: 100vh; padding-bottom: 80px; }
+        .view.active { display: block; animation: fadeIn 0.3s ease; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        .header { background: var(--primary); color: white; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .header h1 { font-size: 18px; font-weight: 600; letter-spacing: 1px; }
+        .btn { padding: 8px 16px; border-radius: 6px; border: none; font-size: 14px; font-weight: 600; cursor: pointer; transition: 0.2s; }
+        .btn-light { background: rgba(255,255,255,0.2); color: white; }
+        .btn-light:hover { background: rgba(255,255,255,0.3); }
+        .btn-primary { background: var(--accent); color: white; }
+        .btn-danger { background: var(--danger); color: white; }
+        .btn-outline { background: transparent; border: 1px solid var(--border-dark); color: var(--text-main); }
+        .fab { position: fixed; bottom: 30px; right: 30px; width: 56px; height: 56px; border-radius: 50%; background: var(--accent); color: white; display: flex; justify-content: center; align-items: center; font-size: 24px; box-shadow: 0 4px 15px rgba(37, 99, 235, 0.4); cursor: pointer; border: none; z-index: 90; }
+
+        .container { max-width: 900px; margin: 0 auto; padding: 20px; }
+        .card { background: var(--bg-paper); border: 1px solid var(--border-light); border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
+        .section-title { font-size: 16px; font-weight: 700; border-left: 4px solid var(--primary); padding-left: 10px; margin-bottom: 15px; color: var(--primary); }
+
+        .grid-3 { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 15px; }
+        .grid-2 { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 15px; }
+        .form-group { margin-bottom: 10px; }
+        .form-group label { display: block; font-size: 12px; color: var(--text-sub); margin-bottom: 5px; font-weight: bold; }
+        .form-control { width: 100%; padding: 10px; border: 1px solid var(--border-light); border-radius: 6px; font-size: 14px; background: var(--bg-card); outline: none; transition: 0.2s; }
+        .form-control:focus { border-color: var(--accent); background: white; }
+
+        /* ====== 多选框 ====== */
+        .checkbox-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 10px; margin-top: 10px; }
+        .checkbox-label { display: flex; align-items: center; gap: 6px; font-size: 14px; cursor: pointer; user-select: none; }
+        .checkbox-label input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer; }
+
+        /* ====== 点数限制通用框 ====== */
+        .stat-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .stat-limit-box { background: var(--bg-body); padding: 5px 10px; border-radius: 6px; font-size: 12px; font-weight: bold; }
+        .stat-limit-box.error { background: #fef2f2; color: var(--danger); border: 1px solid #fecaca; }
+        
+        .stat-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px dashed var(--border-light); }
+        .stat-name { font-size: 14px; font-weight: 600; width: 60px; }
+        .stat-dots { display: flex; gap: 6px; }
+        .dot { width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--border-dark); cursor: pointer; transition: 0.1s; }
+        .dot.active { background: var(--star-on); border-color: var(--star-on); box-shadow: inset 0 0 0 3px white; }
+
+        /* ====== 滑块 (7阶段) ====== */
+        .trait-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: x 20px; column-gap: 30px; }
+        .trait-row { display: flex; align-items: center; gap: 8px; margin-bottom: 15px; }
+        .trait-label { font-size: 12px; font-weight: 600; width: 35px; text-align: center; }
+        .trait-slider-wrap { flex: 1; position: relative; display: flex; align-items: center; }
+        .trait-track { position: absolute; width: 100%; height: 6px; background: var(--border-light); border-radius: 3px; z-index: 1; }
+        .trait-steps { position: absolute; width: 100%; display: flex; justify-content: space-between; z-index: 2; pointer-events: none; padding: 0 8px; }
+        .trait-step-mark { width: 4px; height: 4px; background: white; border-radius: 50%; }
+        input[type=range] { -webkit-appearance: none; width: 100%; background: transparent; z-index: 3; position: relative; height: 24px; margin: 0; outline: none; }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 18px; width: 18px; border-radius: 50%; background: var(--primary); cursor: pointer; border: 3px solid white; box-shadow: 0 1px 4px rgba(0,0,0,0.3); transition: background 0.2s; }
+        
+        /* 7 阶颜色渐变 */
+        .trait-row[data-val="-3"] input::-webkit-slider-thumb { background: #1e3a8a; } 
+        .trait-row[data-val="-2"] input::-webkit-slider-thumb { background: #2563eb; }
+        .trait-row[data-val="-1"] input::-webkit-slider-thumb { background: #60a5fa; }
+        .trait-row[data-val="0"] input::-webkit-slider-thumb { background: #94a3b8; }  
+        .trait-row[data-val="1"] input::-webkit-slider-thumb { background: #f472b6; }
+        .trait-row[data-val="2"] input::-webkit-slider-thumb { background: #e11d48; }
+        .trait-row[data-val="3"] input::-webkit-slider-thumb { background: #be123c; } 
+
+        .radar-wrap { display: flex; justify-content: center; position: relative; margin: 20px 0; }
+        .radar-inputs { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-top: 15px; }
+
+        .bottom-bar { position: fixed; bottom: 0; left: 0; width: 100%; background: white; border-top: 1px solid var(--border-light); padding: 10px 20px; display: flex; gap: 10px; z-index: 100; box-shadow: 0 -2px 10px rgba(0,0,0,0.05); }
+        .bottom-bar .btn { flex: 1; padding: 12px; font-size: 16px; }
+
+        .list-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 15px; }
+        .oc-card { background: white; border: 1px solid var(--border-light); border-radius: 10px; padding: 15px; display: flex; align-items: center; gap: 15px; cursor: pointer; transition: 0.2s; position: relative; overflow: hidden; }
+        .oc-card::before { content: ''; position: absolute; left: 0; top: 0; width: 4px; height: 100%; background: var(--primary); }
+        .oc-card:hover { border-color: var(--border-dark); transform: translateY(-2px); }
+        .oc-avatar { width: 60px; height: 60px; border-radius: 8px; background: var(--bg-body); display: flex; justify-content: center; align-items: center; font-size: 24px; color: var(--border-dark); }
+        .oc-info { flex: 1; }
+        .oc-name { font-size: 18px; font-weight: bold; margin-bottom: 4px; }
+        .oc-tags { font-size: 12px; color: var(--text-sub); display: flex; gap: 8px; }
+
+        .detail-header { text-align: center; margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px dashed var(--border-light); }
+        .detail-name { font-size: 28px; font-weight: 800; margin-bottom: 5px; }
+        .detail-sub { font-size: 14px; color: var(--text-sub); }
+        .d-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; margin-bottom: 20px; }
+        .d-item { background: var(--bg-card); padding: 8px 12px; border-radius: 6px; font-size: 13px; }
+        .d-item span { color: var(--text-sub); display: inline-block; width: 65px; font-weight: bold; }
+        
+        .tag-pill { background: var(--bg-body); border: 1px solid var(--border-light); padding: 4px 10px; border-radius: 15px; font-size: 12px; font-weight: 600; color: var(--primary); display: inline-block; margin: 0 6px 6px 0; }
+    </style>
+</head>
+<body>
+
+    <div id="toast">系统提示</div>
+
+    <div id="confirmModal">
+        <div class="modal-box">
+            <h3 style="margin-bottom:10px; color:var(--text-main);">⚠️ 危险操作</h3>
+            <p id="confirmText" style="font-size:14px; color:var(--text-sub); margin-bottom:20px;">确认执行此操作吗？</p>
+            <div style="display:flex; gap:10px;">
+                <button class="btn btn-outline" style="flex:1;" onclick="closeConfirm()">取消</button>
+                <button class="btn btn-danger" style="flex:1;" id="confirmYesBtn">确认</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="view-list" class="view active">
+        <div class="header">
+            <h1>📑 档案局 - OC 管理中台</h1>
+            <button class="btn btn-light" onclick="exportData()">备份档案</button>
+        </div>
+        <div class="container">
+            <div id="ocList" class="list-grid"></div>
+            <div id="emptyState" style="text-align: center; padding: 50px 20px; color: var(--text-sub); display: none;">
+                <div style="font-size: 48px; margin-bottom: 10px;">🗂️</div>
+                <p>档案库为空，点击右下角建立新档案</p>
+            </div>
+        </div>
+        <button class="fab" onclick="openEdit()">+</button>
+    </div>
+
+    <div id="view-edit" class="view">
+        <div class="header">
+            <h1 id="editTitle">编辑档案</h1>
+            <button class="btn btn-light" onclick="switchView('list')">取消</button>
+        </div>
+        <div class="container" style="padding-bottom: 20px;">
+            <input type="hidden" id="editId">
+            
+            <div class="card">
+                <div class="section-title">基础信息</div>
+                <div class="grid-3" id="basicInputsContainer"></div>
+            </div>
+
+            <div class="card">
+                <div class="section-title">身份立场</div>
+                <div class="grid-3" id="identityInputsContainer"></div>
+            </div>
+
+            <div class="card">
+                <div class="stat-header">
+                    <div class="section-title" style="margin:0;">身体素质评估</div>
+                    <div id="pointsBox" class="stat-limit-box">
+                        已分配: <span id="ptsUsed">0</span> / <input type="number" id="v_maxPoints" value="25" style="width:40px; border:none; background:transparent; font-weight:bold; font-size:12px; outline:none;" onchange="updateFormValidation()">
+                    </div>
+                </div>
+                <div class="grid-2" id="statDotsContainer"></div>
+            </div>
+
+            <div class="card">
+                <div class="stat-header">
+                    <div class="section-title" style="margin:0;">战斗属性雷达</div>
+                    <div id="radarPointsBox" class="stat-limit-box">
+                        已分配: <span id="radarPtsUsed">0</span> / <input type="number" id="v_radarMaxPoints" value="300" style="width:40px; border:none; background:transparent; font-weight:bold; font-size:12px; outline:none;" onchange="updateFormValidation()">
+                    </div>
+                </div>
+                <div class="radar-wrap"><canvas id="radarCanvas" width="240" height="240"></canvas></div>
+                <div class="radar-inputs" id="radarInputsContainer"></div>
+            </div>
+
+            <div class="card">
+                <div class="section-title">战斗偏好</div>
+                <div class="form-group">
+                    <label>战斗风格</label>
+                    <div class="checkbox-grid" id="combatStyleContainer"></div>
+                </div>
+                <div class="form-group" style="margin-top: 20px;">
+                    <label>武器类型</label>
+                    <div class="checkbox-grid" id="weaponTypeContainer"></div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="section-title">性格特点</div>
+                <div class="trait-grid" id="traitsContainer"></div>
+            </div>
+
+            <div class="card">
+                <div class="section-title">社会评价</div>
+                <div class="trait-grid" id="socialContainer"></div>
+            </div>
+
+            <div class="card">
+                <div class="section-title">个人喜好与备忘</div>
+                <div class="grid-2" id="prefInputsContainer"></div>
+            </div>
+        </div>
+
+        <div class="bottom-bar">
+            <button class="btn btn-outline" onclick="switchView('list')">返回</button>
+            <button class="btn btn-primary" id="saveBtn" onclick="saveOC()">🔒 封存档案 (保存)</button>
+        </div>
+    </div>
+
+    <div id="view-detail" class="view">
+        <div class="header">
+            <h1>档案查阅</h1>
+            <div style="display:flex; gap:10px;">
+                <button class="btn btn-light" onclick="switchView('list')">返回</button>
+                <button class="btn btn-primary" onclick="openEdit(document.getElementById('detId').value)">编辑</button>
+            </div>
+        </div>
+        <div class="container">
+            <input type="hidden" id="detId">
+            
+            <div class="card">
+                <div class="detail-header">
+                    <div class="detail-name" id="d_name">名字</div>
+                    <div class="detail-sub" id="d_sub">称号</div>
+                </div>
+                <div class="section-title" style="font-size: 14px;">基础信息</div>
+                <div class="d-grid" id="d_basic"></div>
+                <div class="section-title" style="font-size: 14px; margin-top: 15px;">身份立场</div>
+                <div class="d-grid" id="d_identity"></div>
+            </div>
+
+            <div class="card">
+                <div class="section-title">身体素质评估</div>
+                <div class="grid-2" id="d_stats"></div>
+            </div>
+
+            <div class="card">
+                <div class="section-title">战斗系统</div>
+                <div style="margin-bottom: 15px;">
+                    <div style="font-size: 13px; color: var(--text-sub); margin-bottom: 6px; font-weight: bold;">战斗风格</div>
+                    <div id="d_combatStyle"></div>
+                </div>
+                <div style="margin-bottom: 15px;">
+                    <div style="font-size: 13px; color: var(--text-sub); margin-bottom: 6px; font-weight: bold;">武器偏好</div>
+                    <div id="d_weaponType"></div>
+                </div>
+                <div class="radar-wrap"><canvas id="d_radarCanvas" width="240" height="240"></canvas></div>
+            </div>
+
+            <div class="card">
+                <div class="section-title">性格与社会评价</div>
+                <div class="trait-grid" id="d_traits"></div>
+                <div style="margin: 20px 0; border-top: 1px dashed var(--border-light);"></div>
+                <div class="trait-grid" id="d_social"></div>
+            </div>
+
+            <div class="card">
+                <div class="section-title">个人喜好档案</div>
+                <div class="d-grid" id="d_pref" style="grid-template-columns: 1fr;"></div>
+            </div>
+
+            <button class="btn btn-danger" style="width: 100%; margin-top: 20px;" onclick="deleteOC()">⚠️ 销毁此档案 (删除)</button>
+        </div>
+    </div>
+
+<script>
+/* ================= 配置数据字典 ================= */
+const BASIC_FIELDS = [
+    {id: 'name', label: '姓名', placeholder: '角色代号或姓名 (必填)'}, {id: 'gender', label: '性别'}, {id: 'birthplace', label: '出生地'},
+    {id: 'nickname', label: '外号'}, {id: 'age', label: '年龄'}, {id: 'appearance', label: '肤色/发色/瞳色'},
+    {id: 'height', label: '身高'}, {id: 'weight', label: '体重'}, {id: 'marks', label: '特殊印记'},
+    {id: 'birthday', label: '生日'}, {id: 'race', label: '种族'}, {id: 'catchphrase', label: '口头禅'},
+    {id: 'language', label: '语种'}, {id: 'bodytype', label: '体型'}, {id: 'positioning', label: '创作定位'}
+];
+const IDENTITY_FIELDS = [
+    {id: 'identity', label: '身份'}, {id: 'occupation', label: '职业'}, {id: 'faction', label: '阵营'},
+    {id: 'social_class', label: '阶级'}, {id: 'bloodline', label: '血统'}, {id: 'belief', label: '信仰'}
+];
+const PREF_FIELDS = [
+    {id: 'color', label: '颜色'}, {id: 'food', label: '食物'}, {id: 'clothing', label: '穿衣'}, {id: 'quirk', label: '怪癖'},
+    {id: 'like', label: '喜欢'}, {id: 'fear', label: '害怕'}, {id: 'dislike', label: '厌恶'}, {id: 'trauma', label: '创伤'},
+    {id: 'dream', label: '志向梦想'}, {id: 'philosophy', label: '哲学观念'}, {id: 'important_date', label: '重要纪念日'}
+];
+
+const STATS_DEFS = ['体力', '感知', '情商', '智商', '视力', '耐心', '力量', '敏捷', '运气', '直觉'];
+const RADAR_DEFS = ['攻击', '防御', '速度', '魔力', '治疗', '生命'];
+
+const TRAIT_DEFS = [
+    ['自信', '自卑'], ['坚强', '脆弱'], ['理性', '感性'], ['认真', '草率'], ['乐观', '悲观'], ['礼貌', '野蛮'], 
+    ['外向', '内向'], ['幽默', '正经'], ['热情', '高冷'], ['保守', '叛逆'], ['坦诚', '内敛'], ['客观', '偏激'], 
+    ['温柔', '暴躁'], ['果决', '犹豫'], ['勇敢', '懦弱'], ['现实', '浪漫'], ['敏感', '迟钝'], ['正义', '邪恶'], 
+    ['勤快', '懒惰'], ['清醒', '迷糊'], ['节俭', '挥霍'], ['冷静', '冲动']
+];
+const SOCIAL_DEFS = [['无名', '显赫'], ['善名', '恶名'], ['天才', '庸才'], ['文才', '武才']];
+
+const COMBAT_STYLES = ['激进进攻', '防守反击', '灵活游击', '控制消耗', '阵地攻坚', '战术策略'];
+const WEAPON_TYPES = ['近战武器', '远程武器', '魔法武器', '特殊武器'];
+
+/* ================= 状态数据 ================= */
+let ocs = [];
+try { ocs = JSON.parse(localStorage.getItem('oc_dossiers')) || []; if(!Array.isArray(ocs)) ocs = []; } catch(e) { ocs = []; }
+let currentStats = {}; 
+
+window.onload = () => { initEditForm(); renderList(); };
+
+function switchView(viewName) {
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    document.getElementById('view-' + viewName).classList.add('active');
+    window.scrollTo(0,0);
+}
+
+function showToast(msg, isSuccess = false) {
+    const t = document.getElementById('toast'); t.innerText = msg;
+    t.style.background = isSuccess ? '#059669' : 'var(--danger)';
+    t.style.display = 'block'; setTimeout(() => t.style.display = 'none', 2500);
+}
+
+let confirmCallback = null;
+function showConfirm(msg, callback) {
+    document.getElementById('confirmText').innerText = msg;
+    document.getElementById('confirmModal').style.display = 'flex'; confirmCallback = callback;
+}
+function closeConfirm() { document.getElementById('confirmModal').style.display = 'none'; confirmCallback = null; }
+document.getElementById('confirmYesBtn').onclick = () => { if(confirmCallback) confirmCallback(); closeConfirm(); };
+
+/* ================= 渲染引擎 ================= */
+function buildInputs(fieldsArray, prefix) {
+    return fieldsArray.map(f => `
+        <div class="form-group">
+            <label>${f.label}</label>
+            <input type="text" id="${prefix}_${f.id}" class="form-control" placeholder="${f.placeholder || ''}">
+        </div>
+    `).join('');
+}
+
+function buildSliders(defsArray, prefixCls) {
+    return defsArray.map((t, i) => `
+        <div class="trait-row" id="${prefixCls}Row_${i}" data-val="0">
+            <div class="trait-label" style="color:#2563eb;">${t[0]}</div>
+            <div class="trait-slider-wrap">
+                <div class="trait-track"></div>
+                <div class="trait-steps">
+                    <div class="trait-step-mark"></div><div class="trait-step-mark"></div><div class="trait-step-mark"></div>
+                    <div class="trait-step-mark"></div>
+                    <div class="trait-step-mark"></div><div class="trait-step-mark"></div><div class="trait-step-mark"></div>
+                </div>
+                <input type="range" class="${prefixCls}-input" data-idx="${i}" min="-3" max="3" step="1" value="0" oninput="document.getElementById('${prefixCls}Row_${i}').setAttribute('data-val', this.value)">
+            </div>
+            <div class="trait-label" style="color:#e11d48;">${t[1]}</div>
+        </div>
+    `).join('');
+}
+
+function buildCheckboxes(items, prefix) {
+    return items.map((item, i) => `
+        <label class="checkbox-label">
+            <input type="checkbox" id="${prefix}_${i}" value="${item}"> ${item}
+        </label>
+    `).join('');
+}
+
+function initEditForm() {
+    document.getElementById('basicInputsContainer').innerHTML = buildInputs(BASIC_FIELDS, 'b');
+    document.getElementById('identityInputsContainer').innerHTML = buildInputs(IDENTITY_FIELDS, 'i');
+    document.getElementById('prefInputsContainer').innerHTML = buildInputs(PREF_FIELDS, 'p');
+
+    document.getElementById('statDotsContainer').innerHTML = STATS_DEFS.map(s => `
+        <div class="stat-row"><div class="stat-name">${s}</div><div class="stat-dots" data-stat="${s}">
+            ${[1,2,3,4,5].map(v => `<div class="dot" onclick="setStat('${s}', ${v})"></div>`).join('')}
+        </div></div>`).join('');
+
+    document.getElementById('radarInputsContainer').innerHTML = RADAR_DEFS.map(r => `
+        <div><label style="font-size:12px; color:var(--text-sub); display:block; margin-bottom:4px; text-align:center;">${r}</label>
+        <input type="number" class="form-control r-input" data-radar="${r}" min="0" max="100" value="50" style="text-align:center; padding:8px;" oninput="updateRadarChart('radarCanvas', true); updateFormValidation();"></div>
+    `).join('');
+
+    document.getElementById('traitsContainer').innerHTML = buildSliders(TRAIT_DEFS, 't');
+    document.getElementById('socialContainer').innerHTML = buildSliders(SOCIAL_DEFS, 's');
+    
+    document.getElementById('combatStyleContainer').innerHTML = buildCheckboxes(COMBAT_STYLES, 'cb_c');
+    document.getElementById('weaponTypeContainer').innerHTML = buildCheckboxes(WEAPON_TYPES, 'cb_w');
+}
+
+function renderList() {
+    const listEl = document.getElementById('ocList'); const emptyEl = document.getElementById('emptyState');
+    if (ocs.length === 0) { listEl.innerHTML = ''; emptyEl.style.display = 'block'; return; }
+    emptyEl.style.display = 'none';
+    listEl.innerHTML = ocs.map(oc => `
+        <div class="oc-card" onclick="openDetail('${oc.id}')">
+            <div class="oc-avatar">${(oc.basic && oc.basic.name ? oc.basic.name.charAt(0) : '?')}</div>
+            <div class="oc-info">
+                <div class="oc-name">${oc.basic && oc.basic.name ? oc.basic.name : '未命名档案'}</div>
+                <div class="oc-tags"><span>${(oc.identity && oc.identity.occupation) || '未知职业'}</span> | <span>${(oc.basic && oc.basic.race) || '未知种族'}</span></div>
+            </div>
+        </div>
+    `).join('');
+}
+
+function setStat(statName, value) {
+    if (currentStats[statName] === value) value = value - 1;
+    currentStats[statName] = value;
+    const dots = document.querySelectorAll(`.stat-dots[data-stat="${statName}"] .dot`);
+    dots.forEach((dot, index) => { if (index < value) dot.classList.add('active'); else dot.classList.remove('active'); });
+    updateFormValidation();
+}
+
+function updateFormValidation() {
+    let statSum = 0; for (let k in currentStats) statSum += currentStats[k];
+    const statMax = parseInt(document.getElementById('v_maxPoints').value) || 25;
+    document.getElementById('ptsUsed').innerText = statSum;
+    const statBox = document.getElementById('pointsBox');
+
+    let radarSum = 0; document.querySelectorAll('.r-input').forEach(inp => radarSum += (parseInt(inp.value) || 0));
+    const radarMax = parseInt(document.getElementById('v_radarMaxPoints').value) || 300;
+    document.getElementById('radarPtsUsed').innerText = radarSum;
+    const radarBox = document.getElementById('radarPointsBox');
+
+    const btn = document.getElementById('saveBtn'); let hasError = false;
+    if (statSum > statMax) { statBox.classList.add('error'); hasError = true; } else { statBox.classList.remove('error'); }
+    if (radarSum > radarMax) { radarBox.classList.add('error'); hasError = true; } else { radarBox.classList.remove('error'); }
+
+    if (hasError) { btn.disabled = true; btn.innerText = '⚠️ 点数超限，无法保存'; btn.style.opacity = '0.5'; } 
+    else { btn.disabled = false; btn.innerText = '🔒 封存档案 (保存)'; btn.style.opacity = '1'; }
+}
+
+function updateRadarChart(canvasId, fromInputs = false, readOnlyData = null) {
+    const canvas = document.getElementById(canvasId); if(!canvas) return;
+    const ctx = canvas.getContext('2d'); const w = 240, h = 240, cx = 120, cy = 120, r = 80;
+    
+    let values = [];
+    if (fromInputs) { document.querySelectorAll('.r-input').forEach(inp => { let v = parseInt(inp.value) || 0; values.push(v > 100 ? 100 : (v < 0 ? 0 : v)); }); } 
+    else { values = RADAR_DEFS.map(lbl => readOnlyData[lbl] || 0); }
+
+    ctx.clearRect(0, 0, w, h); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = 'bold 12px sans-serif';
+    ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = 1;
+    for(let j=1; j<=5; j++) {
+        ctx.beginPath();
+        for(let i=0; i<6; i++) {
+            let angle = (Math.PI * 2 / 6) * i - Math.PI/2;
+            let px = cx + Math.cos(angle) * r * (j/5), py = cy + Math.sin(angle) * r * (j/5);
+            if(i===0) ctx.moveTo(px,py); else ctx.lineTo(px,py);
+        }
+        ctx.closePath(); ctx.stroke();
+    }
+    for(let i=0; i<6; i++) {
+        let angle = (Math.PI * 2 / 6) * i - Math.PI/2;
+        ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(angle) * r, cy + Math.sin(angle) * r); ctx.strokeStyle = '#cbd5e1'; ctx.stroke();
+        ctx.fillStyle = '#475569'; ctx.fillText(RADAR_DEFS[i], cx + Math.cos(angle) * (r+20), cy + Math.sin(angle) * (r+20));
+    }
+    ctx.beginPath();
+    for(let i=0; i<6; i++) {
+        let angle = (Math.PI * 2 / 6) * i - Math.PI/2; let val = values[i] / 100; 
+        let px = cx + Math.cos(angle) * r * val, py = cy + Math.sin(angle) * r * val;
+        if(i===0) ctx.moveTo(px,py); else ctx.lineTo(px,py);
+    }
+    ctx.closePath(); ctx.fillStyle = 'rgba(37, 99, 235, 0.3)'; ctx.fill(); ctx.strokeStyle = 'rgba(37, 99, 235, 0.8)'; ctx.lineWidth = 2; ctx.stroke();
+}
+
+/* ================= 业务逻辑 ================= */
+function collectData(fieldsArray, prefix) {
+    let data = {}; fieldsArray.forEach(f => { data[f.id] = document.getElementById(`${prefix}_${f.id}`).value; }); return data;
+}
+function fillData(fieldsArray, prefix, dataObj) {
+    fieldsArray.forEach(f => { document.getElementById(`${prefix}_${f.id}`).value = dataObj ? (dataObj[f.id] || '') : ''; });
+}
+function collectCheckboxes(prefix, length) {
+    let arr = []; for(let i=0; i<length; i++) { let cb = document.getElementById(`${prefix}_${i}`); if(cb && cb.checked) arr.push(cb.value); } return arr;
+}
+function fillCheckboxes(prefix, length, dataArr) {
+    for(let i=0; i<length; i++) { let cb = document.getElementById(`${prefix}_${i}`); if(cb) { cb.checked = dataArr && dataArr.includes(cb.value); } }
+}
+
+function openEdit(id = null) {
+    switchView('edit');
+    document.getElementById('editTitle').innerText = id ? '编辑档案' : '建立新档案';
+    document.getElementById('editId').value = id || '';
+    
+    currentStats = {}; STATS_DEFS.forEach(s => setStat(s, 0));
+    document.getElementById('v_maxPoints').value = 25; document.getElementById('v_radarMaxPoints').value = 300;
+    document.querySelectorAll('.r-input').forEach(inp => inp.value = 50);
+    document.querySelectorAll('.t-input, .s-input').forEach(inp => { inp.value = 0; inp.dispatchEvent(new Event('input')); });
+
+    fillData(BASIC_FIELDS, 'b', {}); fillData(IDENTITY_FIELDS, 'i', {}); fillData(PREF_FIELDS, 'p', {});
+    fillCheckboxes('cb_c', COMBAT_STYLES.length, []); fillCheckboxes('cb_w', WEAPON_TYPES.length, []);
+
+    if (id) {
+        const oc = ocs.find(x => x.id === id);
+        if (oc) {
+            fillData(BASIC_FIELDS, 'b', oc.basic); fillData(IDENTITY_FIELDS, 'i', oc.identity); fillData(PREF_FIELDS, 'p', oc.preferences);
+            fillCheckboxes('cb_c', COMBAT_STYLES.length, oc.combatStyles); fillCheckboxes('cb_w', WEAPON_TYPES.length, oc.weaponTypes);
+            
+            document.getElementById('v_maxPoints').value = oc.maxPoints || 25; document.getElementById('v_radarMaxPoints').value = oc.radarMaxPoints || 300;
+            if(oc.stats) { for(let k in oc.stats) setStat(k, oc.stats[k]); }
+            if(oc.radar) { document.querySelectorAll('.r-input').forEach(inp => { inp.value = oc.radar[inp.dataset.radar] || 0; }); }
+            if(oc.traits) { document.querySelectorAll('.t-input').forEach((inp, i) => { inp.value = oc.traits[i] || 0; inp.dispatchEvent(new Event('input')); }); }
+            if(oc.social) { document.querySelectorAll('.s-input').forEach((inp, i) => { inp.value = oc.social[i] || 0; inp.dispatchEvent(new Event('input')); }); }
+        }
+    }
+    updateFormValidation(); setTimeout(() => updateRadarChart('radarCanvas', true), 50);
+}
+
+function saveOC() {
+    const id = document.getElementById('editId').value || Date.now().toString();
+    const name = document.getElementById('b_name').value.trim();
+    if (!name) { showToast("⚠️ 基础信息中的【姓名】为必填项！"); document.getElementById('b_name').focus(); return; }
+
+    let radarData = {}; document.querySelectorAll('.r-input').forEach(inp => radarData[inp.dataset.radar] = parseInt(inp.value) || 0);
+    let traitsData = {}; document.querySelectorAll('.t-input').forEach((inp, i) => traitsData[i] = parseInt(inp.value) || 0);
+    let socialData = {}; document.querySelectorAll('.s-input').forEach((inp, i) => socialData[i] = parseInt(inp.value) || 0);
+
+    const ocData = {
+        id: id, maxPoints: parseInt(document.getElementById('v_maxPoints').value) || 25, radarMaxPoints: parseInt(document.getElementById('v_radarMaxPoints').value) || 300,
+        basic: collectData(BASIC_FIELDS, 'b'), identity: collectData(IDENTITY_FIELDS, 'i'), preferences: collectData(PREF_FIELDS, 'p'),
+        combatStyles: collectCheckboxes('cb_c', COMBAT_STYLES.length), weaponTypes: collectCheckboxes('cb_w', WEAPON_TYPES.length),
+        stats: { ...currentStats }, radar: radarData, traits: traitsData, social: socialData
+    };
+
+    const existingIdx = ocs.findIndex(x => x.id === id);
+    if (existingIdx > -1) ocs[existingIdx] = ocData; else ocs.push(ocData);
+
+    localStorage.setItem('oc_dossiers', JSON.stringify(ocs));
+    showToast("✅ 档案已成功保存！", true); renderList(); switchView('list');
+}
+
+function renderReadOnlySliders(containerId, defsArray, savedData) {
+    let html = '';
+    for(let i=0; i<defsArray.length; i++) {
+        let val = savedData ? (savedData[i] || 0) : 0;
+        html += `
+        <div class="trait-row" data-val="${val}" style="pointer-events:none;">
+            <div class="trait-label" style="color:#2563eb;">${defsArray[i][0]}</div>
+            <div class="trait-slider-wrap">
+                <div class="trait-track"></div>
+                <div class="trait-steps">
+                    <div class="trait-step-mark"></div><div class="trait-step-mark"></div><div class="trait-step-mark"></div><div class="trait-step-mark"></div><div class="trait-step-mark"></div><div class="trait-step-mark"></div><div class="trait-step-mark"></div>
+                </div>
+                <input type="range" min="-3" max="3" step="1" value="${val}">
+            </div>
+            <div class="trait-label" style="color:#e11d48;">${defsArray[i][1]}</div>
+        </div>`;
+    }
+    document.getElementById(containerId).innerHTML = html;
+}
+
+function openDetail(id) {
+    const oc = ocs.find(x => x.id === id); if(!oc) return;
+    document.getElementById('detId').value = oc.id;
+    document.getElementById('d_name').innerText = oc.basic.name || '未命名';
+    document.getElementById('d_sub').innerText = `${oc.basic.nickname ? '「'+oc.basic.nickname+'」' : ''}`;
+
+    document.getElementById('d_basic').innerHTML = BASIC_FIELDS.filter(f=>f.id!=='name'&&f.id!=='nickname').map(f => `<div class="d-item"><span>${f.label}</span> ${oc.basic[f.id] || '-'}</div>`).join('');
+    document.getElementById('d_identity').innerHTML = IDENTITY_FIELDS.map(f => `<div class="d-item"><span>${f.label}</span> ${oc.identity ? (oc.identity[f.id] || '-') : '-'}</div>`).join('');
+    document.getElementById('d_pref').innerHTML = PREF_FIELDS.map(f => `<div class="d-item"><span>${f.label}</span> ${oc.preferences ? (oc.preferences[f.id] || '-') : '-'}</div>`).join('');
+
+    let statHtml = '';
+    for(let k of STATS_DEFS) {
+        let val = oc.stats ? (oc.stats[k] || 0) : 0; let dots = '';
+        for(let i=1; i<=5; i++) { dots += `<div class="dot ${i<=val ? 'active' : ''}"></div>`; }
+        statHtml += `<div class="stat-row" style="border-bottom:none; padding:4px 0;"><div class="stat-name">${k}</div><div class="stat-dots" style="pointer-events:none;">${dots}</div></div>`;
+    }
+    document.getElementById('d_stats').innerHTML = statHtml;
+
+    document.getElementById('d_combatStyle').innerHTML = (oc.combatStyles && oc.combatStyles.length > 0) ? oc.combatStyles.map(s => `<span class="tag-pill">${s}</span>`).join('') : '<span style="color:var(--text-sub);font-size:12px;">无记录</span>';
+    document.getElementById('d_weaponType').innerHTML = (oc.weaponTypes && oc.weaponTypes.length > 0) ? oc.weaponTypes.map(s => `<span class="tag-pill" style="border-color:#f43f5e; color:#e11d48;">${s}</span>`).join('') : '<span style="color:var(--text-sub);font-size:12px;">无记录</span>';
+
+    renderReadOnlySliders('d_traits', TRAIT_DEFS, oc.traits);
+    renderReadOnlySliders('d_social', SOCIAL_DEFS, oc.social);
+
+    switchView('detail'); setTimeout(() => updateRadarChart('d_radarCanvas', false, oc.radar), 50);
+}
+
+function deleteOC() {
+    showConfirm('此操作将永久销毁该档案，且不可恢复！确认执行？', () => {
+        const id = document.getElementById('detId').value; ocs = ocs.filter(x => x.id !== id);
+        localStorage.setItem('oc_dossiers', JSON.stringify(ocs)); renderList(); switchView('list'); showToast("🗑️ 档案已销毁", true);
+    });
+}
+
+function exportData() {
+    const blob = new Blob([JSON.stringify(ocs, null, 2)], {type: 'application/json'});
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `OC全档案备份_${new Date().getTime()}.json`; a.click();
+}
+function importData(e) {
+    const file = e.target.files[0]; if(!file) return; const reader = new FileReader();
+    reader.onload = (ev) => {
+        try { const data = JSON.parse(ev.target.result); if(Array.isArray(data)) { ocs = data; localStorage.setItem('oc_dossiers', JSON.stringify(ocs)); renderList(); showToast('📥 档案导入成功！', true); } } catch(err) { showToast('❌ 数据解密失败！'); }
+    }; reader.readAsText(file); e.target.value = '';
+}
+</script>
+</body>
+</html>
